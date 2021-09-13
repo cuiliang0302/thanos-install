@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thanos-storage-config
+  namespace: thanos
+data:
+  storage.yaml: |
+    type: FILESYSTEM
+    config:
+      directory: "/data/thanos-store/"
+

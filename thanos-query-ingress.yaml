@@ -1,0 +1,12 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: thanos-querier
+  namespace: thanos
+spec:
+  routes:
+    - match: Host(`thanos-querier.local.com`)
+      kind: Rule
+      services:
+        - name: thanos-query
+          port: 9090

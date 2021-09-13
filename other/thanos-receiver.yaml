@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-receive
+  namespace: thanos
+  labels:
+    kubernetes.io/name: thanos-receive
+spec:
+  ports:
+  - name: http
+    port: 10902
+    protocol: TCP
+    targetPort: 10902
+  - name: remote-write
+    port: 19291
+    protocol: TCP
+    targetPort: 19291
+  - name: grpc
+    port: 10901
+    protocol: TCP
+    targetPort: 10901
+  selector:
+    kubernetes.io/name: thanos-receive
+  clusterIP: None
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    kubernetes.io/name: thanos-receive
+  name: thanos-receive
+  namespace: thanos
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      kubernetes.io/name: thanos-receive
+  serviceName: thanos-receive
+  template:
+    metadata:
+      labels:
+        kubernetes.io/name: thanos-receive
+    spec:
+      containers:
+      - args:
+        - receive
+        - --grpc-address=0.0.0.0:10901
+        - --http-address=0.0.0.0:10902
+        - --remote-write.address=0.0.0.0:19291
+        - --tsdb.path=/var/thanos/receive
+        - --tsdb.retention=12h
+        - --label=receive_replica="$(NAME)"
+        - --label=receive="true"
+        - --receive.hashrings-file=/etc/thanos/thanos-receive-hashrings.json
+        - --receive.local-endpoint=$(NAME).thanos-receive.thanos.svc.cluster.local:10901
+        env:
+        - name: NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        image: thanosio/thanos:v0.23.0-rc.0
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: 2Gi
+            cpu: "1"
+          requests:
+            memory: "128Mi"
+            cpu: "100m" 
+        livenessProbe:
+          failureThreshold: 4
+          httpGet:
+            path: /-/healthy
+            port: 10902
+            scheme: HTTP
+          periodSeconds: 30
+        name: thanos-receive
+        ports:
+        - containerPort: 10901
+          name: grpc
+        - containerPort: 10902
+          name: http
+        - containerPort: 19291
+          name: remote-write
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 10902
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        volumeMounts:
+        - mountPath: /var/thanos/receive
+          name: data
+          readOnly: false
+        - mountPath: /etc/thanos/thanos-receive-hashrings.json
+          name: thanos-receive-hashrings
+          subPath: thanos-receive-hashrings.json
+      terminationGracePeriodSeconds: 120
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: thanos-receive-hashrings
+        name: thanos-receive-hashrings
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: local-storage
+      resources:
+        requests:
+          storage: 10Gi

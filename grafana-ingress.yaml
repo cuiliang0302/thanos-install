@@ -1,0 +1,12 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana
+  namespace: thanos
+spec:
+  routes:
+    - match: Host(`grafana.local.com`)
+      kind: Rule
+      services:
+        - name: grafana
+          port: 3000

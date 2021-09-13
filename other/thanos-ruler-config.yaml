@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: thanos-rules
+  labels:
+    name: thanos-rules
+  namespace: thanos
+data:
+  record.rules.yaml: |-
+    groups:
+    - name: k8s.rules
+      rules:
+      - expr: |
+          sum(rate(container_cpu_usage_seconds_total{job="cadvisor", image!="", container!=""}[5m])) by (namespace)
+        record: namespace:container_cpu_usage_seconds_total:sum_rate
+      - expr: |
+          sum(container_memory_usage_bytes{job="cadvisor", image!="", container!=""}) by (namespace)
+        record: namespace:container_memory_usage_bytes:sum
+      - expr: |
+          sum by (namespace, pod, container) (
+            rate(container_cpu_usage_seconds_total{job="cadvisor", image!="", container!=""}[5m])
+          )
+        record: namespace_pod_container:container_cpu_usage_seconds_total:sum_rate

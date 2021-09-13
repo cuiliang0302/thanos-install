@@ -1,0 +1,12 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus
+  namespace: thanos
+spec:
+  routes:
+    - match: Host(`prometheus.local.com`)
+      kind: Rule
+      services:
+        - name: prometheus-headless
+          port: 9090

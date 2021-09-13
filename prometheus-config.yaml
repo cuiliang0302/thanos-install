@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config-tmpl
+  namespace: thanos
+data:
+  prometheus.yaml.tmpl: |-
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+      external_labels:
+        cluster: prometheus-ha
+        prometheus_replica: $(POD_NAME)
+    rule_files:
+    - /etc/prometheus/rules/*.yaml
+    scrape_configs:
+    - job_name: node_exporter
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - source_labels: [__address__]
+        regex: '(.*):10250'
+        replacement: '${1}:9100'
+        target_label: __address__
+        action: replace
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+    - job_name: kubelet
+      metrics_path: /metrics/cadvisor
+      scrape_interval: 10s
+      scrape_timeout: 10s
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+    - job_name: 'kube-state-metrics'
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:8080
+      - source_labels:  ["__meta_kubernetes_pod_container_name"]
+        regex: "^kube-state-metrics.*"
+        action: keep
+    - job_name: prometheus
+      honor_labels: false
+      kubernetes_sd_configs:
+      - role: endpoints
+      scrape_interval: 30s
+      relabel_configs:
+      - source_labels:
+          - __meta_kubernetes_service_label_name
+        regex: k8s-prometheus
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  labels:
+    name: prometheus-rules
+  namespace: thanos
+data:
+  alert-rules.yaml: |-
+    groups:
+    - name: k8s.rules
+      rules:
+      - expr: |
+          sum(rate(container_cpu_usage_seconds_total{job="cadvisor", image!="", container!=""}[5m])) by (namespace)
+        record: namespace:container_cpu_usage_seconds_total:sum_rate
+      - expr: |
+          sum(container_memory_usage_bytes{job="cadvisor", image!="", container!=""}) by (namespace)
+        record: namespace:container_memory_usage_bytes:sum
+      - expr: |
+          sum by (namespace, pod, container) (
+            rate(container_cpu_usage_seconds_total{job="cadvisor", image!="", container!=""}[5m])
+          )
+        record: namespace_pod_container:container_cpu_usage_seconds_total:sum_rate
