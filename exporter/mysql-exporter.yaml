@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-exporter-svc
+  namespace: thanos
+  labels:
+    app: mysql-exporter
+spec:
+  selector:
+    app: mysql-exporter
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 9104
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-exporter
+  namespace: thanos
+  labels:
+    app: mysql-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-exporter
+  template:
+    metadata:
+      labels:
+        app: mysql-exporter
+    spec:
+      hostNetwork: true
+      containers:
+        - name: mysql-exporter
+          image: harbor.com/prometheus/mysqld-exporter:0.14.0
+          env:
+          - name: DATA_SOURCE_NAME
+            value: monitor:password@(192.168.10.100)/
+          ports:
+            - containerPort: 9104
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+            limits:
+              cpu: 150m
+              memory: 180Mi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-node-29.elk.com
+                      - k8s-node-30.elk.com

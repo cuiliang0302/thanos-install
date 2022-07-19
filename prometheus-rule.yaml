@@ -1,0 +1,282 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rule
+  labels:
+    name: prometheus-rule
+  namespace: thanos
+data:
+  alert-rules.yaml: |-
+    groups:
+    - name: node
+      rules:
+      - alert: OsNodeStatusIsDown
+        expr: up{job="node_exporter"} == 0
+        for: 5m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "node {{ $labels.ip }} down"
+          description: "{{$labels.cluster}} {{$labels.ip}} OS down more than 5 minutes"
+          value: "{{ $labels.ip }}"
+      - alert: OsHighDiskUsage
+        expr: 100 * (node_filesystem_size_bytes{fstype=~"xfs|ext4",mountpoint=~"/|/data1|/data2|/data"} - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 80
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} High Disk Usage"
+          description: "{{$labels.cluster}} {{$labels.ip}} OS mountpoint: {{$labels.mountpoint}} Disk Usage above 80%"
+          value: "{{ $value | humanize }}"
+      - alert: OsHighDockerDirectoryUsage
+        expr: 100 * (node_filesystem_size_bytes{fstype=~"xfs|ext4",mountpoint="/var/lib/docker"} - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 90
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} High Docker Directory Usage"
+          description: "{{$labels.cluster}} {{$labels.ip}} OS mountpoint: {{$labels.mountpoint}} Docker Directory Usage above 90%"
+          value: "{{ $value | humanize }}"
+      - alert: OsHighRunDirectoryUsage
+        expr: 100 * (node_filesystem_size_bytes{mountpoint="/run"} - node_filesystem_avail_bytes) / node_filesystem_size_bytes > 90
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} High Docker Directory Usage"
+          description: "{{$labels.cluster}} {{$labels.ip}} OS mountpoint: {{$labels.mountpoint}} Docker Directory Usage above 90%"
+          value: "{{ $value | humanize }}"
+      - alert: OsDiskWillFillIn24Hours
+        expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and ON (instance, device, mountpoint) node_filesystem_readonly == 0
+        for: 10m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{ $labels.ip }} Host disk will fill in 24 hours"
+          description: "{{$labels.cluster}} {{$labels.ip}} OS disk will fill in 24 hours"
+          value: "{{ $value }}"
+      - alert: OsHighCpuUsage
+        expr: 100 * (1 - avg by(instance,job,cluster) (irate(node_cpu_seconds_total{mode="idle"}[5m]))) > 90
+        for: 20m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} High CPU Usage"
+          description: "{{$labels.cluster}} {{$labels.ip}} OS CPU usage above 90%"
+          value: "{{ $value | humanize }}"
+      - alert: OsHighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes/ (node_memory_MemTotal_bytes))) > 95
+        for: 20m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} High Memory Usage"
+          description: "{{$labels.cluster}} {{ $labels.ip }} OS Memory usage above 95%"
+          value: "{{ $value | humanize }}"
+      - alert: OsNetworkThroughputIn
+        expr: sum by(instance,job,cluster) (rate(node_network_receive_bytes_total{device="bond0"}[5m])) / 1024 / 1024 > 150
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} OS network throughput in"
+          description: "{{$labels.cluster}} {{ $labels.ip }} OS network interfaces receive more than 150Mb/s"
+          value: "{{ $value | humanize }}"
+      - alert: OsNetworkThroughputOut
+        expr: sum by(instance,job,cluster) (rate(node_network_transmit_bytes_total{device="bond0"}[5m])) / 1024 / 1024 > 150
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{ $labels.ip }} OS network throughput out"
+          description: "{{$labels.cluster}} {{ $labels.ip }} OS network interfaces send more than 150Mb/s"
+          value: "{{ $value | humanize }}"
+      - alert: OsServiceNotRunning
+        expr: namedprocess_namegroup_num_procs == 0
+        for: 5m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.ip}} {{$labels.groupname}} service not running"
+          description: "{{$labels.ip}} {{$labels.groupname}} service status not running"
+          value: "{{$labels.groupname}}"
+    - name: kubernetes
+      rules: 
+      - alert: KubernetesNodeReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 10m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{ $labels.instance }} Kubernetes Node ready"
+          description: "{{$labels.cluster}} {{ $labels.node }} K8S node has been unready for 10m"
+          value: "{{ $labels.node }}"
+      - alert: KubernetesApiserverLessNumberOfNodes
+        expr: count(up{job="kube-apiserver"}) by (job,cluster)<3
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{$labels.cluster}} Apiserver Less Number Of Nodes"
+          description: "{{$labels.cluster}} K8S Apiserver Less Number Of Nodes for 5m"
+          value: "{{ $value }}"
+      - alert: KubernetesDeploymentReplicasMismatch
+        expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+        for: 10m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{$labels.cluster}} Kubernetes Deployment replicas mismatch"
+          description: "{{$labels.cluster}} K8S {{ $labels.deployment }} Deployment Replicas mismatch"
+          value: "{{ $labels.deployment }}"
+      - alert: KubernetesStatefulsetReplicasMismatch
+        expr: kube_statefulset_status_replicas_ready != kube_statefulset_status_replicas
+        for: 10m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{$labels.cluster}} Kubernetes StatefulSet replicas mismatch"
+          description: "{{$labels.cluster}} K8S {{ $labels.statefulset }} StatefulSet replicas mismatch"
+          value: "{{ $labels.statefulset }}"        
+    - name: prometheus
+      rules: 
+      - alert: PrometheusJobMissing
+        expr: absent(up{job="prometheus"})
+        for: 5m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{ $labels.instance }} Prometheus job missing"
+          description: "{{$labels.cluster}} Prometheus {{ $labels.pod }} job has disappeared"
+          value: "{{ $labels.pod }}"
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 5m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.cluster}} Prometheus target missing"
+          description: "{{$labels.cluster}} Prometheus {{ $labels.job }} target missing"
+          value: "{{ $labels.job }}"
+      - alert: PrometheusThanosComponentUnavailable
+        expr: thanos_status{check="healthy"} == 0
+        for: 5m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.cluster}} Thanos Component Unavailable"
+          description: "{{$labels.cluster}} {{$labels.component}} Prometheus Thanos Component Unavailable"
+          value: "{{$labels.component}}"
+    - name: blackbox
+      rules:
+      # - alert: GrafanaServiceUnavailable
+      #   expr: probe_http_status_code{instance="http://grafana-service.grafana.svc:3000",cluster=~"tj-prod|nj-prod"} != 200
+      #   for: 10m
+      #   labels:
+      #     team: sre
+      #     severity: s2
+      #   annotations:
+      #     summary: "{{$labels.cluster}} grafana service status code error"
+      #     description: "{{$labels.cluster}} grafana service status code error"
+      #     value: "{{ $value }}"
+      # - alert: KibanaServiceUnavailable
+      #   expr: probe_http_status_code{instance="http://kibana-kb-http.prod.svc:5601",cluster=~".*prod$"} != 200 or probe_http_status_code{instance="http://kibana-kb-http.default.svc:5601",cluster=~".*test$"} !=200
+      #   for: 10m
+      #   labels:
+      #     team: sre
+      #     severity: s2
+      #   annotations:
+      #     summary: "{{$labels.cluster}} Kibana service status code error"
+      #     description: "{{$labels.cluster}} Kibana service status code error"
+      #     value: "{{ $value }}"
+      - alert: ServicePortUnavailable
+        expr: probe_success{instance=~"(\\d+.){4}\\d+"} == 0
+        for: 5m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.cluster}} Service Port unavailable"
+          description: "{{$labels.cluster}} {{ $labels.instance }} Service Port is unavailable"
+          value: "{{ $labels.instance }}"
+      - alert: KubernetesApiserverSSLCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time()  < 86400 * 7
+        for: 10m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "Kubernetes Apiserver SSL Cert Expiring Soon"
+          description: "{{$labels.cluster}} K8S {{ $labels.instance }} Apiserver SSL Cert Expiring Soon" 
+          value: "{{ $labels.instance }}"
+    - name: elasticsearch
+      rules:
+      - alert: EsClusterUnavailable
+        expr: elasticsearch_cluster_health_up == 0
+        for: 15m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.cluster}} Es cluster is unavailable"
+          description: "{{$labels.cluster}} Es cluster is unavailable"
+          value: "{{ $value }}"
+      - alert: EsClusterStatusRed
+        expr: elasticsearch_cluster_health_status{color="red"} == 1
+        for: 15m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.cluster}} Es cluster status is red"
+          description: "{{$labels.cluster}} Es cluster status is red"
+          value: "{{ $value }}"
+      - alert: EsClusterNodeLess
+        expr: elasticsearch_cluster_health_number_of_nodes != 130
+        for: 15m
+        labels:
+          team: sre
+          severity: s2 
+        annotations:
+          summary: "{{$labels.cluster}} ES Data nodes less"
+          description: "{{$labels.cluster}} ES cluster data nodes less, value {{ $value }}" 
+          value: "{{ $value }}"
+      - alert: EsClusterShardsTooMuch
+        expr: elasticsearch_cluster_health_active_primary_shards > 54000
+        for: 5m
+        labels:
+          team: sre
+          severity: s3
+        annotations:
+          summary: "{{$labels.cluster}} ES Shards"
+          description: "{{$labels.cluster}} ES cluster primary shards more than 54000, value {{ $value }}"
+          value: "{{ $value }}"
+    - name: Kafka
+      rules:
+      - alert: KafkaBrokerNotReady
+        expr: service_connection_health_connection_status{name="Kafka",port="9092"} == 0
+        for: 15m
+        labels:
+          team: sre
+          severity: s2
+        annotations:
+          summary: "{{$labels.cluster}} Kafka Broker Status Not Ready"
+          description: "{{$labels.cluster}} Kafka broker {{ $labels.ip }} has been unready for more than 15 minutes"
+          value: "{{ $labels.ip }}"

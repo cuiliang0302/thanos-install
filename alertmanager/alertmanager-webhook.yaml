@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-webhook
+  namespace: thanos
+  labels:
+    app: alert-webhook
+spec:
+  selector:
+    app: alert-webhook
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 5000
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-webhook
+  namespace: thanos
+  labels:
+    app: alert-webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alert-webhook
+  template:
+    metadata:
+      labels:
+        app: alert-webhook
+    spec:
+      containers:
+      - image: harbor.com/cuiliang/alert-webhook:v1
+        name: alert-webhook
+        ports:
+        - containerPort: 5000
+          name: alert
+        volumeMounts:
+        - name: alert-webhook-log
+          mountPath: /opt/alert-webhook/log
+        livenessProbe:
+          httpGet:
+            path: /healthy
+            port: alert
+          initialDelaySeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthy
+            port: alert
+          initialDelaySeconds: 10
+          timeoutSeconds: 10
+        resources:
+          limits:
+            cpu: 1000m 
+            memory: 2Gi
+          requests:
+            cpu: 25m
+            memory: 64Mi
+      restartPolicy: Always
+      volumes:
+      - name: alert-webhook-log
+        hostPath:
+          path: /data1/alert-webhook-log
+          type: Directory
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-node-81.elk.com
+                      - k8s-node-83.elk.com
+                      - k8s-node-73.elk.com

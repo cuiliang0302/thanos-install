@@ -1,27 +1,27 @@
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: prometheus-tls
+  name: thanos-query-global-tls
   namespace: thanos
 spec:
   routes:
-    - match: Host(`prometheus.com`)
+    - match: Host(`thanos-query.com`)
       kind: Rule
       services:
-        - name: prometheus-headless 
+        - name: thanos-query-global
           port: 9090
   tls:
-    secretName: prometheus-headless-tls
+    secretName: thanos-querier-tls
 ---
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: prometheus
+  name: thanos-query-global
   namespace: thanos
 spec:
   routes:
-    - match: Host(`prometheus.com`)
+    - match: Host(`thanos-query.com`)
       kind: Rule
       services:
-        - name: prometheus-headless
+        - name: thanos-query-global
           port: 9090

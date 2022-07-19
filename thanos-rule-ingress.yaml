@@ -1,27 +1,27 @@
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: prometheus-tls
+  name: thanos-rule-tls
   namespace: thanos
 spec:
   routes:
-    - match: Host(`prometheus.com`)
+    - match: Host(`thanos-rule.com`)
       kind: Rule
       services:
-        - name: prometheus-headless 
-          port: 9090
+        - name: thanos-rule
+          port: 10902
   tls:
-    secretName: prometheus-headless-tls
+    secretName: thanos-rule-tls
 ---
 apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: prometheus
+  name: thanos-rule
   namespace: thanos
 spec:
   routes:
-    - match: Host(`prometheus.com`)
+    - match: Host(`thanos-rule.com`)
       kind: Rule
       services:
-        - name: prometheus-headless
-          port: 9090
+        - name: thanos-rule
+          port: 10902

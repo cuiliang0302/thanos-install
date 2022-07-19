@@ -1,17 +1,3 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: alertmanager
-  namespace: thanos
-spec:
-  selector:
-    app: alertmanager
-  ports:
-  - name: alertmanager
-    protocol: TCP
-    port: 9093
-    targetPort: 9093
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,12 +16,12 @@ spec:
     spec:
       containers:
       - name: alertmanager
-        image: prom/alertmanager:v0.23.0
+        image: harbor.com/prometheus/alertmanager:v0.24.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:
-            memory: "512Mi"
-            cpu: "1000m"
+            memory: "4Gi"
+            cpu: "2"
           requests:
             memory: "128Mi"
             cpu: "500m"
@@ -50,6 +36,16 @@ spec:
           mountPath: /etc/alertmanager
         - name: alertmanager
           mountPath: /alertmanager
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: alertmanager
+            scheme: HTTP
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: alertmanager
+            scheme: HTTP
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

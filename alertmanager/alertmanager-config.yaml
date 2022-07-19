@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-conf
+  namespace: thanos
+data:
+  config.yaml: |-
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: # 根据label标签的key进行匹配分组
+      - job
+      group_interval: 5m  # 当组内已经发送过一个告警，组内若有新增告警需要等待的时间
+      group_wait: 30s # 组内等待时间
+      receiver: "webhook" # 接收组名
+      repeat_interval: 24h  # 重复告警发送间隔
+    receivers:
+    - name: "webhook"
+      webhook_configs:
+      - url: 'http://alert-webhook.thanos.svc:5000'
+        send_resolved: true # 告警解决通知
+    inhibit_rules:
+    - source_match: # 节点宕机后抑制Prometheus target告警
+        alertname: "OsNodeStatusIsDown"
+      target_match:
+        alertname: "PrometheusTargetMissing"
+      equal: ['instance','kubernetes_io_hostname']
+    - source_match: # es集群变红后抑制节点数变少，集群不可用告警
+        alertname: EsClusterStatusRed
+      target_match_re:
+        alertname: EsClusterNodeLess | EsClusterUnavailable
+      equal: ['cluster']
+      

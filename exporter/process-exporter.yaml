@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: process-exporter-config
+  namespace: thanos
+data:
+  process-exporter-config.yaml: |-
+    process_names:
+    - name: "{{.Matches}}"
+      cmdline:
+      - 'docker'
+    - name: "{{.Matches}}"
+      cmdline:
+      - 'kubelet'
+    - name: "{{.Matches}}"
+      cmdline:
+      - 'chronyd'
+    - name: "{{.Matches}}"
+      cmdline:
+      - 'sshd'
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: process-exporter
+  namespace: thanos
+  labels:
+    app: process-exporter
+spec:
+  selector:
+    matchLabels:
+      app: process-exporter
+  template:
+    metadata:
+      labels:
+        app: process-exporter
+    spec:
+      hostPID: true
+      hostIPC: true
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        - name: process-exporter
+          image: harbor.com/prometheus/process-exporter:0.7.10
+          args:
+            - -config.path=/config/process-exporter-config.yaml
+          ports:
+            - containerPort: 9256
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+            limits:
+              cpu: 150m
+              memory: 180Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+          volumeMounts:
+            - name: proc
+              mountPath: /proc
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: config
+          configMap:
+            name: process-exporter-config

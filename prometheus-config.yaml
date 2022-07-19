@@ -1,19 +1,153 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: prometheus-config-tmpl
+  name: prometheus-config
   namespace: thanos
 data:
   prometheus.yaml.tmpl: |-
     global:
-      scrape_interval: 5s
-      evaluation_interval: 5s
+      scrape_interval: 30s
+      evaluation_interval: 30s
       external_labels:
-        cluster: prometheus-ha
-        prometheus_replica: $(POD_NAME)
+        cluster: $(CLUSTER)
+        prometheus_replica: $(CLUSTER)-$(POD_NAME)
+    # alerting:
+    #   alertmanagers:
+    #   - static_configs:
+    #     - targets: ["alertmanager-endpoints:30011"]
     rule_files:
     - /etc/prometheus/rules/*.yaml
     scrape_configs:
+    - job_name: kube-apiserver
+      kubernetes_sd_configs:
+      - role: endpoints
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: kube-controller-manager
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_k8s_app]
+        regex: kube-controller-manager
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: kube-scheduler
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_k8s_app]
+        regex: kube-scheduler
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: etcd
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_component]
+        regex: etcd
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:2381
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: coredns
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_k8s_app]
+        regex: kube-dns
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:9153
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: kube-state-metrics
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: kube-system;kube-state-metrics
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:8080
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
     - job_name: node_exporter
       kubernetes_sd_configs:
       - role: node
@@ -25,10 +159,234 @@ data:
         action: replace
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
+      - source_labels: [__meta_kubernetes_node_address_InternalIP]
+        action: replace
+        target_label: ip
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: traefik
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name]
+        regex: traefik
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:8080
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: prometheus
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_app]
+        regex: prometheus
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:9090
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: alertmanager
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: thanos;alertmanager
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: grafana
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_label_name]
+        regex: grafana;grafana
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: minio
+      metrics_path: /minio/v2/metrics/cluster
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: minio;miniostorage-headless
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:9000
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: es_exporter
+      scrape_interval: 5m
+      scrape_timeout: 1m
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_label_app]
+        regex: thanos;es-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: mysql_exporter
+      scrape_interval: 1m
+      scrape_timeout: 1m
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_label_app]
+        regex: thanos;mysql-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:9104
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: logstash_exporter
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_label_app]
+        regex: thanos;logstash-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: kafka_exporter
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_label_app]
+        regex: thanos;kafka-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: process_exporter
+      scrape_interval: 5m
+      scrape_timeout: 1m
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_label_app]
+        regex: thanos;process-exporter
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:9256
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
     - job_name: kubelet
       metrics_path: /metrics/cadvisor
-      scrape_interval: 10s
-      scrape_timeout: 10s
       scheme: https
       tls_config:
         insecure_skip_verify: true
@@ -38,57 +396,156 @@ data:
       relabel_configs:
       - action: labelmap
         regex: __meta_kubernetes_node_label_(.+)
-    - job_name: 'kube-state-metrics'
-      kubernetes_sd_configs:
-      - role: pod
-      relabel_configs:
+      - source_labels: [instance]
+        action: replace
+        target_label: node
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
       - source_labels: [__meta_kubernetes_pod_name]
         action: replace
         target_label: pod
-      - action: labelmap
-        regex: __meta_kubernetes_pod_label_(.+)
-      - source_labels: [__meta_kubernetes_pod_ip]
-        regex: (.+)
-        target_label: __address__
-        replacement: ${1}:8080
-      - source_labels:  ["__meta_kubernetes_pod_container_name"]
-        regex: "^kube-state-metrics.*"
-        action: keep
-    - job_name: prometheus
-      honor_labels: false
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: thanos-query
       kubernetes_sd_configs:
       - role: endpoints
-      scrape_interval: 30s
       relabel_configs:
-      - source_labels:
-          - __meta_kubernetes_service_label_name
-        regex: k8s-prometheus
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: thanos;thanos-query
         action: keep
       - source_labels: [__meta_kubernetes_pod_ip]
         regex: (.+)
         target_label: __address__
         replacement: ${1}:9090
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: prometheus-rules
-  labels:
-    name: prometheus-rules
-  namespace: thanos
-data:
-  alert-rules.yaml: |-
-    groups:
-    - name: k8s.rules
-      rules:
-      - expr: |
-          sum(rate(container_cpu_usage_seconds_total{job="cadvisor", image!="", container!=""}[5m])) by (namespace)
-        record: namespace:container_cpu_usage_seconds_total:sum_rate
-      - expr: |
-          sum(container_memory_usage_bytes{job="cadvisor", image!="", container!=""}) by (namespace)
-        record: namespace:container_memory_usage_bytes:sum
-      - expr: |
-          sum by (namespace, pod, container) (
-            rate(container_cpu_usage_seconds_total{job="cadvisor", image!="", container!=""}[5m])
-          )
-        record: namespace_pod_container:container_cpu_usage_seconds_total:sum_rate
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: thanos-rule
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: thanos;thanos-rule
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:10902
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: thanos-store
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: thanos;thanos-store
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_ip]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:10902
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: thanos-compact
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name]
+        regex: thanos;thanos-compact
+        action: keep
+      - source_labels: [__meta_kubernetes_endpoints_name]
+        action: replace
+        target_label: endpoint
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+    - job_name: blackbox_exporter_http
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      static_configs:
+      - targets:
+        - http://grafana-service.grafana.svc:3000
+        - http://kibana-kb-http.prod.svc:5601
+        - http://kibana-kb-http.default.svc:5601
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter-svc:9115
+    - job_name: blackbox_exporter_ssl
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      static_configs:
+      - targets:
+        - https://kubernetes.default.svc:443
+        labels:
+          group: kube-apiserver
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter-svc:9115
+    - job_name: blackbox_exporter_tcp
+      metrics_path: /probe
+      params:
+        module: [tcp_connect]
+      static_configs:
+      - targets:
+        - 192.168.10.100:3306
+        labels:
+          group: 'mysql'
+      - targets:
+        - 192.168.30.22:32339
+        - 192.167.30.71:31101
+        labels:
+          group: 'elasticsearch'
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter-svc:9115

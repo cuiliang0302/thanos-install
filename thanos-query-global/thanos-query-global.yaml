@@ -1,54 +1,19 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: thanos-query
-  namespace: thanos
-  labels:
-    app: thanos-query
-spec:
-  ports:
-  - name: grpc
-    port: 10901
-    targetPort: grpc
-  - name: http
-    port: 9090
-    targetPort: http
-  selector:
-    app: thanos-query
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: thanos-query-grpc
-  namespace: thanos
-  labels:
-    app: thanos-query
-spec:
-  type: NodePort
-  ports:
-  - name: grpc
-    port: 10901
-    targetPort: grpc
-    nodePort: 30030
-  selector:
-    app: thanos-query
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: thanos-query
+  name: thanos-query-global
   namespace: thanos
   labels:
-    app: thanos-query
+    app: thanos-query-global
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: thanos-query
+      app: thanos-query-global
   template:
     metadata:
       labels:
-        app: thanos-query
+        app: thanos-query-global
     spec:
       affinity:
         podAntiAffinity:
@@ -59,11 +24,11 @@ spec:
                 - key: app
                   operator: In
                   values:
-                  - thanos-query
+                  - thanos-query-global
               topologyKey: kubernetes.io/hostname
             weight: 100
       containers:
-      - name: thanos-query
+      - name: thanos-query-global
         args:
         - query
         - --log.level=debug
@@ -72,10 +37,12 @@ spec:
         - --http-address=0.0.0.0:9090
         - --query.partial-response
         - --query.replica-label=prometheus_replica
-        - --query.replica-label=rule_replica
-        - --store=dnssrv+_grpc._tcp.prometheus-headless.thanos.svc.cluster.local
-        - --store=dnssrv+_grpc._tcp.thanos-rule.thanos.svc.cluster.local
-        - --store=dnssrv+_grpc._tcp.thanos-store.thanos.svc.cluster.local
+        - --store=192.168.10.30:30030
+        - --store=192.168.10.31:30030
+        - --store=192.168.10.32:30030
+        - --store=192.168.20.30:30030
+        - --store=192.168.20.31:30030
+        - --store=192.168.20.32:30030
         image: harbor.com/prometheus/thanos:v0.26.0
         imagePullPolicy: IfNotPresent
         resources:
