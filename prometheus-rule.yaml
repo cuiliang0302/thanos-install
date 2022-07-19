@@ -186,45 +186,35 @@ data:
           value: "{{$labels.component}}"
     - name: blackbox
       rules:
-      # - alert: GrafanaServiceUnavailable
-      #   expr: probe_http_status_code{instance="http://grafana-service.grafana.svc:3000",cluster=~"tj-prod|nj-prod"} != 200
-      #   for: 10m
-      #   labels:
-      #     team: sre
-      #     severity: s2
-      #   annotations:
-      #     summary: "{{$labels.cluster}} grafana service status code error"
-      #     description: "{{$labels.cluster}} grafana service status code error"
-      #     value: "{{ $value }}"
-      # - alert: KibanaServiceUnavailable
-      #   expr: probe_http_status_code{instance="http://kibana-kb-http.prod.svc:5601",cluster=~".*prod$"} != 200 or probe_http_status_code{instance="http://kibana-kb-http.default.svc:5601",cluster=~".*test$"} !=200
-      #   for: 10m
-      #   labels:
-      #     team: sre
-      #     severity: s2
-      #   annotations:
-      #     summary: "{{$labels.cluster}} Kibana service status code error"
-      #     description: "{{$labels.cluster}} Kibana service status code error"
-      #     value: "{{ $value }}"
-      - alert: ServicePortUnavailable
-        expr: probe_success{instance=~"(\\d+.){4}\\d+"} == 0
-        for: 5m
+      - alert: WebServiceUnavailable
+        expr: probe_http_status_code{group!="kube-apiserver"} != 200
+        for: 10m
         labels:
           team: sre
           severity: s2
         annotations:
-          summary: "{{$labels.cluster}} Service Port unavailable"
+          summary: "service status code error"
+          description: "{{$labels.cluster}} {{$labels.group}} service status code is {{ $value }}"
+          value: "{{ $labels.instance }}"
+      - alert: ServicePortUnavailable
+        expr: probe_success{instance=~"(\\d+.){4}\\d+"} == 0
+        for: 5m
+        labels: 
+          team: sre
+          severity: s2
+        annotations:
+          summary: "service port unavailable"
           description: "{{$labels.cluster}} {{ $labels.instance }} Service Port is unavailable"
           value: "{{ $labels.instance }}"
       - alert: KubernetesApiserverSSLCertExpiringSoon
-        expr: probe_ssl_earliest_cert_expiry - time()  < 86400 * 7
+        expr: probe_ssl_earliest_cert_expiry{group="kube-apiserver"} - time()  < 86400 * 7
         for: 10m
         labels:
           team: sre
           severity: s3
         annotations:
-          summary: "Kubernetes Apiserver SSL Cert Expiring Soon"
-          description: "{{$labels.cluster}} K8S {{ $labels.instance }} Apiserver SSL Cert Expiring Soon" 
+          summary: "kubernetes apiserver SSL cert expiring soon"
+          description: "{{$labels.cluster}} K8S apiserver ssl less than 7 days" 
           value: "{{ $labels.instance }}"
     - name: elasticsearch
       rules:
