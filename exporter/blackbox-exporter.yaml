@@ -55,7 +55,7 @@ spec:
       nodeSelector:
         role: removable
       containers:
-      - image: harbor.com/prometheus/blackbox-exporter:v0.21.0
+      - image: harbor.com/prometheus/blackbox-exporter:v0.23.0
         name: blackbox-exporter
         args:
           - --config.file=/config/blackbox.yml

@@ -21,7 +21,7 @@ metadata:
   labels:
     app: thanos-compact
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: thanos-compact
@@ -41,10 +41,11 @@ spec:
         - --data-dir=/data
         - --debug.accept-malformed-index
         - --log.level=debug
+        - --delete-delay=1d
         - --retention.resolution-raw=7d
         - --retention.resolution-5m=15d
         - --retention.resolution-1h=30d
-        image: harbor.com/prometheus/thanos:v0.26.0
+        image: harbor.com/prometheus/thanos:v0.30.2
         imagePullPolicy: IfNotPresent
         resources:
           limits:
@@ -80,3 +81,7 @@ spec:
       - name: thanos-storage-config
         secret:
           secretName: thanos-objectstorage
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0

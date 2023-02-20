@@ -43,7 +43,7 @@ spec:
         - --store=192.168.20.30:30030
         - --store=192.168.20.31:30030
         - --store=192.168.20.32:30030
-        image: harbor.com/prometheus/thanos:v0.26.0
+        image: harbor.com/prometheus/thanos:v0.30.2
         imagePullPolicy: IfNotPresent
         resources:
           limits:

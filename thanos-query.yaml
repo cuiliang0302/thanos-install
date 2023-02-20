@@ -76,7 +76,7 @@ spec:
         - --store=dnssrv+_grpc._tcp.prometheus-headless.thanos.svc.cluster.local
         - --store=dnssrv+_grpc._tcp.thanos-rule.thanos.svc.cluster.local
         - --store=dnssrv+_grpc._tcp.thanos-store.thanos.svc.cluster.local
-        image: harbor.com/prometheus/thanos:v0.26.0
+        image: harbor.com/prometheus/thanos:v0.30.2
         imagePullPolicy: IfNotPresent
         resources:
           limits:

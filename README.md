@@ -4,12 +4,24 @@
 ## 参考文章
 [https://www.cuiliangblog.cn/detail/article/45](https://www.cuiliangblog.cn/detail/article/45)
 
+## 组件版本
+thanos: 0.30.2
+prometheus: 2.42.0
+alertmanager: 0.25.0
+
+blackbox-exporter: 0.23.0
+elasticsearch-exporter: 1.5.0
+kafka-exporter:1.4.2
+mysqld-exporter:0.14.0
+node-exporter: 1.5.0
+process-exporter:0.7.10
+
 ## 修改内容
 ### 1. 镜像仓库地址
 ```yaml
 containers:
   - name: prometheus
-    image: harbor.com/prometheus/prometheus:v2.36.0
+    image: harbor.com/prometheus/prometheus:v2.42.0
 ```
 ### 2, ingress域名
 ```yaml

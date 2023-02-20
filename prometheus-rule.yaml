@@ -186,35 +186,45 @@ data:
           value: "{{$labels.component}}"
     - name: blackbox
       rules:
-      - alert: WebServiceUnavailable
-        expr: probe_http_status_code{group!="kube-apiserver"} != 200
-        for: 10m
+      # - alert: GrafanaServiceUnavailable
+      #   expr: probe_http_status_code{instance="http://grafana-service.grafana.svc:3000",cluster=~"tj-prod|nj-prod"} != 200
+      #   for: 10m
+      #   labels:
+      #     team: sre
+      #     severity: s2
+      #   annotations:
+      #     summary: "{{$labels.cluster}} grafana service status code error"
+      #     description: "{{$labels.cluster}} grafana service status code error"
+      #     value: "{{ $value }}"
+      # - alert: KibanaServiceUnavailable
+      #   expr: probe_http_status_code{instance="http://kibana-kb-http.prod.svc:5601",cluster=~".*prod$"} != 200 or probe_http_status_code{instance="http://kibana-kb-http.default.svc:5601",cluster=~".*test$"} !=200
+      #   for: 10m
+      #   labels:
+      #     team: sre
+      #     severity: s2
+      #   annotations:
+      #     summary: "{{$labels.cluster}} Kibana service status code error"
+      #     description: "{{$labels.cluster}} Kibana service status code error"
+      #     value: "{{ $value }}"
+      - alert: ServicePortUnavailable
+        expr: probe_success{instance=~"(\\d+.){4}\\d+"} == 0
+        for: 5m
         labels:
           team: sre
           severity: s2
         annotations:
-          summary: "service status code error"
-          description: "{{$labels.cluster}} {{$labels.group}} service status code is {{ $value }}"
-          value: "{{ $labels.instance }}"
-      - alert: ServicePortUnavailable
-        expr: probe_success{instance=~"(\\d+.){4}\\d+"} == 0
-        for: 5m
-        labels: 
-          team: sre
-          severity: s2
-        annotations:
-          summary: "service port unavailable"
+          summary: "{{$labels.cluster}} Service Port unavailable"
           description: "{{$labels.cluster}} {{ $labels.instance }} Service Port is unavailable"
           value: "{{ $labels.instance }}"
       - alert: KubernetesApiserverSSLCertExpiringSoon
-        expr: probe_ssl_earliest_cert_expiry{group="kube-apiserver"} - time()  < 86400 * 7
+        expr: probe_ssl_earliest_cert_expiry - time()  < 86400 * 7
         for: 10m
         labels:
           team: sre
           severity: s3
         annotations:
-          summary: "kubernetes apiserver SSL cert expiring soon"
-          description: "{{$labels.cluster}} K8S apiserver ssl less than 7 days" 
+          summary: "Kubernetes Apiserver SSL Cert Expiring Soon"
+          description: "{{$labels.cluster}} K8S {{ $labels.instance }} Apiserver SSL Cert Expiring Soon" 
           value: "{{ $labels.instance }}"
     - name: elasticsearch
       rules:
@@ -270,25 +280,3 @@ data:
           summary: "{{$labels.cluster}} Kafka Broker Status Not Ready"
           description: "{{$labels.cluster}} Kafka broker {{ $labels.ip }} has been unready for more than 15 minutes"
           value: "{{ $labels.ip }}"
-    - name: minIO
-      rules:
-      - alert: MinioDiskOffline
-        expr: minio_cluster_disk_offline_total >= 1
-        for: 10m
-        labels:
-          team: sre
-          severity: s2
-        annotations:
-          summary: "minio disk offline"
-          description: "minio {{$labels.pod}} disk offline"
-          value: "{{ $value }}"
-      - alert: MinioHighBucketUsage
-        expr: 100 * (avg (minio_bucket_usage_total_bytes) by (bucket))/(avg(minio_bucket_quota_total_bytes) by (bucket)) > 80
-        for: 10m
-        labels:
-          team: sre
-          severity: s3
-        annotations:
-          summary: "minio high bucket usage"
-          description: "minio {{$labels.bucket}} bucket usage above 80%"
-          value: "{{ $value | humanize }}"

@@ -52,7 +52,7 @@ spec:
             topologyKey: kubernetes.io/hostname
       containers:
       - name: prometheus
-        image: harbor.com/prometheus/prometheus:v2.36.0
+        image: harbor.com/prometheus/prometheus:v2.42.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:
@@ -104,7 +104,7 @@ spec:
         - name: thanos-data
           mountPath: /prometheus
       - name: sidecar
-        image: harbor.com/prometheus/thanos:v0.26.0
+        image: harbor.com/prometheus/thanos:v0.30.2
         imagePullPolicy: IfNotPresent
         resources:
           limits:

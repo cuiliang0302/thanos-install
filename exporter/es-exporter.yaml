@@ -39,7 +39,7 @@ spec:
         - --es.indices
         - --es.all
         - --es.ssl-skip-verify
-        image: harbor.com/prometheus/elasticsearch-exporter:v1.3.0
+        image: harbor.com/prometheus/elasticsearch-exporter:v1.5.0
         securityContext:
           capabilities:
             drop:

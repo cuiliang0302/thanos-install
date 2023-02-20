@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash-exporter-svc
+  namespace: thanos
+  labels:
+    app: logstash-exporter
+spec:
+  selector:
+    app: logstash-exporter
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 9116
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash-exporter
+  namespace: thanos
+  labels:
+    app: logstash-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash-exporter
+  template:
+    metadata:
+      labels:
+        app: logstash-exporter
+    spec:
+      nodeSelector:
+        app: lgs
+      containers:
+      - image: harbor.com/prometheus/logstash_security_exporter:1.1.4
+        name: logstash-exporter
+        ports:
+        - containerPort: 9116
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          timeoutSeconds: 60
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          timeoutSeconds: 60
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1280Mi
+          requests:
+            cpu: 250m
+            memory: 640Mi
+        volumeMounts:
+          - name: kubectlhome
+            mountPath: /tmp/kube
+      volumes:
+        - name: kubectlhome
+          hostPath:
+            path: /root/.kube
+      restartPolicy: Always
